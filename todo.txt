@@ -1,0 +1,6 @@
+things to do:
+
+- make config file so bert server launches automatically each time
+- modify server config so that it doesn't truncate to 25 words
+- try on real data set
+
