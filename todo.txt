@@ -1,6 +1,8 @@
 things to do:
 
-- make config file so bert server launches automatically each time
-- modify server config so that it doesn't truncate to 25 words
-- try on real data set
+- use bert to the rescue notebook to create a classifer for subjective notes
+- use the bert to the rescue notebook to create a cnn based classifier for subjective notes
+- use bert to the rescue notebook to mix tabular and text data (toy data to start)
+- use fast.ai to retrain parallel tabular and nlp learners on same data, then mix results
+- use add medhx data to tabular datasheet and try
 
