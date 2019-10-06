@@ -1,6 +1,8 @@
 from fastai import *
 from torch.utils.data.dataset import Dataset
 from torch.utils.data.sampler import Sampler
+import numpy as np
+import torch
 
 
 #create adaptive-softmax language-model dataset
@@ -65,7 +67,7 @@ def pad_collate_GCNN(samples, pad_idx=1):
     res = torch.zeros(max_len, len(samples)).long() + pad_idx 
     #for each line in res, set so corresponding sentence is aligned to the left edge
         #(right-padded: keep padding on the right edge)
-    for i,s in enumerate(samples): res[:len(s[0]),i] = LongTensor(s[0]) #right-padded
+    for i,s in enumerate(samples): res[:len(s[0]),i] = torch.LongTensor(s[0]) #right-padded
     #return res as the padded tensor, and another tensor composed of the labels (found in s[1])
     return res.cuda(), torch.FloatTensor(np.array([s[1] for s in samples])).squeeze().cuda()
 
