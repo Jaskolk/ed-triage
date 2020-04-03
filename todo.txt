@@ -1,8 +1,7 @@
 things to do:
 
-- use bert to the rescue notebook to create a classifer for subjective notes
-- use the bert to the rescue notebook to create a cnn based classifier for subjective notes
-- use bert to the rescue notebook to mix tabular and text data (toy data to start)
+- use bert to the rescue notebook to create a classifer for subjective notes and medical hx
+    - then use this to classify
 - use fast.ai to retrain parallel tabular and nlp learners on same data, then mix results
-- use add medhx data to tabular datasheet and try
+
 
