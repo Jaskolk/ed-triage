@@ -1,5 +1,14 @@
 things to do:
 
+- see if I can modify fast.ai to allow for an imbalanced class weight in the loss function
+
+- see about xgboost results with resampling
+- see about XGBoost with augmentation of admission class
+
+- research augmentation of tabular data
+
+- research differentiable AUC like loss function
+
 - use bert to the rescue notebook to create a classifer for subjective notes and medical hx
     - then use this to classify
 - use fast.ai to retrain parallel tabular and nlp learners on same data, then mix results
