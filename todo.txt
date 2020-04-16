@@ -9,6 +9,10 @@ things to do:
 
 - research differentiable AUC like loss function
 
+- try to use independent hospitals
+
+- send arun code for parsing medical history column
+
 - use bert to the rescue notebook to create a classifer for subjective notes and medical hx
     - then use this to classify
 - use fast.ai to retrain parallel tabular and nlp learners on same data, then mix results
