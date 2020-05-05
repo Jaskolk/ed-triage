@@ -2,6 +2,8 @@ things to do:
 
 - see if I can modify fast.ai to allow for an imbalanced class weight in the loss function
 
+- expand metrics function to include sens, spec, ppv, npv
+
 - see about xgboost results with resampling
 - see about XGBoost with augmentation of admission class
 
@@ -18,3 +20,12 @@ things to do:
 - use fast.ai to retrain parallel tabular and nlp learners on same data, then mix results
 
 
+Here’s the plan:
+
+Use counter keys as vocab for medical history
+Tokenize all of the medical history lists and pretend they are sentences rather than groups of sentences
+-	Do TFIDF on them
+-	Embed them using word to vec ? with 1000 features
+trainXGB on embedded sentences.
+
+Also once they are embedded can feed the “tokenized” histories to BERT/ULMfiT etc.
