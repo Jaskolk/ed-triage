@@ -1,8 +1,27 @@
 things to do:
 
 - see if I can modify fast.ai to allow for an imbalanced class weight in the loss function
+ 
+- Some new thoughts on ED triage project:
+1.	 Can you hyperparameter tune on a subset of data and then apply to full dataset?
+****2.	We need to settle on the best single evaluation metric
+3.	It’s time to return to fast.ai and neural networks:
+a.	Probably next move is to set a permanent validation set inside the csv file so now all future models can be tested against the same validation set
+i.	Valid set can probably be only 10000 cases
+b.	Do tabular learning with deep neural net on tabular stuff + preembedded nlp colums
+c.	Is it worth augmenting by increasing the number of admit examples (by copying)?
+d.	Do nlp with ulmfit on the subjective notes and tabular learning on everything else but medical history and ensemble
+****	try TFIDF on one hot encoded medical history … need to read more about this
+f.	change cost function in standard neural net.  With xgb preprocessing I should be able to train my own simple neural net on the parameterized data without fast.ai
+- can I use tensor flow to put a specific cost function (with extra penalty for false negative discharge)
 
-- expand metrics function to include sens, spec, ppv, npv
+look up human level performance on triage/prediction of admission
+
+bert from scratch on subjective notes
+
+**** run xgb multiple times with different size datasets to find optimal dataset size
+
+**** what is our actual metric
 
 - see about xgboost results with resampling
 - see about XGBoost with augmentation of admission class
@@ -13,7 +32,6 @@ things to do:
 
 - try to use independent hospitals
 
-- send arun code for parsing medical history column
 
 - use bert to the rescue notebook to create a classifer for subjective notes and medical hx
     - then use this to classify
