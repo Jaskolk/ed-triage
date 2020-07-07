@@ -53,7 +53,49 @@ def accuracy_per_class(preds, labels):
 
 ###
 
-def evaluate(dataloader_val):
+def get_metrics(dataloader, device, model): #(predictions, true_vals, dataloader):
+
+    _, predictions, true_vals = evaluate(model, dataloader, device)
+
+    preds = [np.argmax(pred) for pred in predictions]
+    preds_flat = np.argmax(preds).flatten()
+    true_vals = true_vals.flatten()
+
+    f1_w = sklearn.metrics.f1_score(true_vals, preds, average='weighted')
+    f1 = sklearn.metrics.f1_score(true_vals, preds, average=None)
+    acc = sklearn.metrics.accuracy_score(true_vals, preds)
+    prec = sklearn.metrics.precision_score(true_vals,preds, average=None) 
+    rec = sklearn.metrics.recall_score(true_vals,preds, average=None)
+    auroc = sklearn.metrics.roc_auc_score(true_vals,predictions[:,1], average=None)
+    confusion = sklearn.metrics.confusion_matrix(true_vals, preds)
+
+    tn, fn, fp, tp = confusion[0,0], confusion[0,1], confusion[1,0], confusion[1,1]
+
+    sens = tp/(tp + fn)
+    spec = tn/(tn + fp)
+    ppv = tp/(tp + fp)
+    npv = tn/(tn + fn)
+
+    print ('Metrics Report:')
+    print ('---------------')
+    print ('weighted f1: ', f1_w)
+    print ('AUROC:       ',auroc)
+    print ('accuracy:    ', acc)
+    print ('precision:   ', prec)
+    print ('recall:      ', rec)
+    print ('sensitivity: ', sens)
+    print ('specificity: ', spec)
+    print ('PPV:         ', ppv)
+    print ('NPV:         ', npv)
+    print ()
+    print ('confusion matrix')
+    print (confusion)
+
+    results_df.loc[len(results_df)] = [desc,num_samples, weights, f1_w, acc, auroc, ppv, sens, batch_size]
+    
+###
+
+def evaluate(model, dataloader_val, device):
 
     model.eval()
 
@@ -90,173 +132,80 @@ def evaluate(dataloader_val):
 
 ###
 
-def train_model(model, dataloader_train, dataloader_valid, save_name, optim = 'default', TPU = False, lr = 1e-5, eps = 1e-8, epochs = 3, weights = None):
+def encode_data(df, text_field, tokenizer):
+    encoded_data_train = tokenizer.batch_encode_plus(
+        df[df.data_type=='train'][text_field].values, 
+        add_special_tokens=True, 
+        return_attention_mask=True, 
+        pad_to_max_length=True, 
+        max_length=256, 
+        return_tensors='pt'
+        )
 
-  model.to(device)
-
-  if weights:
-    weight = torch.tensor([float(i) for i in weights.values()]).to(device)
-    loss_fn = torch.nn.CrossEntropyLoss(weight = weight)
-    print ('using weighted cross entropy loss')
-    print (loss_fn)
-
-  if optim == 'default':
-    print ('optimizing with AdamW')
-    optimizer = AdamW(model.parameters(), lr=lr, eps=eps)
-  else:
-    print ('optimizing with ', str(optim))
-    optimizer = optim
-
-  scheduler = get_linear_schedule_with_warmup(optimizer,
-                                            num_warmup_steps=0,
-                                            num_training_steps=len(dataloader_train)*epochs)
-
-  for epoch in tqdm(range(1, epochs+1)):
-
-    model.train()
-
-    loss_train_total = 0
-
-    progress_bar = tqdm(dataloader_train, desc='Epoch {:1d}'.format(epoch), leave=False, disable=False)
-    for batch in progress_bar:
-
-        model.zero_grad()
-
-        batch = tuple(b.to(device) for b in batch)
-
-        inputs = {'input_ids':      batch[0],
-                  'attention_mask': batch[1],
-                  'labels':         batch[2],
-                 }
-
-        outputs = model(**inputs)
-
-        if weights:
-          loss = loss_fn(outputs[1], batch[2])
-        else:
-          loss = outputs[0]
-
-        loss_train_total += loss.item()
-        loss.backward()
-
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-
-        if TPU:
-          xm.optimizer_step(optimizer, barrier=True)
-        else:
-          optimizer.step()
-
-        scheduler.step()
-
-        progress_bar.set_postfix({'training_loss': '{:.3f}'.format(loss.item()/len(batch))})
+    encoded_data_val = tokenizer.batch_encode_plus(
+        df[df.data_type=='val'][text_field].values, 
+        add_special_tokens=True, 
+        return_attention_mask=True, 
+        pad_to_max_length=True, 
+        max_length=256, 
+        return_tensors='pt'
+        )
 
 
-    torch.save(model.state_dict(), f'/content/{save_name}_BERT_epoch_{epoch}.model')
+    input_ids_train = encoded_data_train['input_ids']
+    attention_masks_train = encoded_data_train['attention_mask']
+    labels_train = torch.tensor(df[df.data_type=='train'].label.values)
 
-    tqdm.write(f'\nEpoch {epoch}')
+    input_ids_val = encoded_data_val['input_ids']
+    attention_masks_val = encoded_data_val['attention_mask']
+    labels_val = torch.tensor(df[df.data_type=='val'].label.values)
 
-    loss_train_avg = loss_train_total/len(dataloader_train)
-    tqdm.write(f'Training loss: {loss_train_avg}')
-
-    val_loss, predictions, true_vals = evaluate(dataloader_validation)
-    val_f1 = f1_score_func(predictions, true_vals)
-    val_acc = accuracy_score_func(predictions, true_vals)
-    tqdm.write(f'Validation loss: {val_loss}')
-    tqdm.write(f'F1 Score (Weighted): {val_f1}')
-    tqdm.write(f'Validation accuracy: {val_acc}')
+    return input_ids_train, attention_masks_train, labels_train, input_ids_val, attention_masks_val, labels_val
 
 ###
 
-def get_metrics(dataloader): #(predictions, true_vals, dataloader):
+def create_dataloaders(input_ids_train, attention_masks_train, labels_train, input_ids_val, attention_masks_val, labels_val, batch_size = 32):
+    dataset_train = TensorDataset(input_ids_train, attention_masks_train, labels_train)
+    dataset_val = TensorDataset(input_ids_val, attention_masks_val, labels_val)
 
-  _, predictions, true_vals = evaluate(dataloader)
-
-  preds = [np.argmax(pred) for pred in predictions]
-  preds_flat = np.argmax(preds).flatten()
-  true_vals = true_vals.flatten()
-
-  f1_w = sklearn.metrics.f1_score(true_vals, preds, average='weighted')
-  f1 = sklearn.metrics.f1_score(true_vals, preds, average=None)
-  acc = sklearn.metrics.accuracy_score(true_vals, preds)
-  prec = sklearn.metrics.precision_score(true_vals,preds, average=None)
-  rec = sklearn.metrics.recall_score(true_vals,preds, average=None)
-  auroc = sklearn.metrics.roc_auc_score(true_vals,predictions[:,1], average=None)
-  confusion = sklearn.metrics.confusion_matrix(true_vals, preds)
-
-#labels flipped for some reason so I had to chance the confusion interpretation
-#tp, fn, fp, tn = confusion[0,0], confusion[0,1], confusion[1,0], confusion[1,1]
-  tn, fn, fp, tp = confusion[0,0], confusion[0,1], confusion[1,0], confusion[1,1]
-
-
-  sens = tp/(tp + fn)
-  spec = tn/(tn + fp)
-  ppv = tp/(tp + fp)
-  npv = tn/(tn + fn)
-
-  print ('Metrics Report:')
-  print ('---------------')
-  print ('weighted f1: ', f1_w)
-  print ('AUROC:       ',auroc)
-  print ('accuracy:    ', acc)
-  print ('precision:   ', prec)
-  print ('recall:      ', rec)
-  print ('sensitivity: ', sens)
-  print ('specificity: ', spec)
-  print ('PPV:         ', ppv)
-  print ('NPV:         ', npv)
-  print ()
-  print ('confusion matrix')
-  print (confusion)
-
-  results_df.loc[len(results_df)] = [desc,num_samples, weights, f1_w, acc, auroc, ppv, sens, batch_size]
-
-###
-
-def encode_data(text_field):
-  encoded_data_train = tokenizer.batch_encode_plus(
-    df[df.data_type=='train'][text_field].values,
-    add_special_tokens=True,
-    return_attention_mask=True,
-    pad_to_max_length=True,
-    max_length=256,
-    return_tensors='pt'
-    )
-
-  encoded_data_val = tokenizer.batch_encode_plus(
-    df[df.data_type=='val'][text_field].values,
-    add_special_tokens=True,
-    return_attention_mask=True,
-    pad_to_max_length=True,
-    max_length=256,
-    return_tensors='pt'
-    )
-
-
-  input_ids_train = encoded_data_train['input_ids']
-  attention_masks_train = encoded_data_train['attention_mask']
-  labels_train = torch.tensor(df[df.data_type=='train'].label.values)
-
-  input_ids_val = encoded_data_val['input_ids']
-  attention_masks_val = encoded_data_val['attention_mask']
-  labels_val = torch.tensor(df[df.data_type=='val'].label.values)
-
-  return input_ids_train, attention_masks_train, labels_train, input_ids_val, attention_masks_val, labels_val
-
-###
-
-def create_dataloaders(batch_size = 32):
-  dataset_train = TensorDataset(input_ids_train, attention_masks_train, labels_train)
-  dataset_val = TensorDataset(input_ids_val, attention_masks_val, labels_val)
-
-  dataloader_train = DataLoader(dataset_train,
-                              sampler=RandomSampler(dataset_train),
+    dataloader_train = DataLoader(dataset_train, 
+                              sampler=RandomSampler(dataset_train), 
                               batch_size=batch_size)
 
-  dataloader_validation = DataLoader(dataset_val,
-                                   sampler=SequentialSampler(dataset_val),
+    dataloader_validation = DataLoader(dataset_val, 
+                                   sampler=SequentialSampler(dataset_val), 
                                    batch_size=batch_size)
+  
+    return dataloader_train, dataloader_validation
 
-  return dataloader_train, dataloader_validation
+###
+
+def process_data(data, num_samples):
+    df = data.sample(num_samples)
+    df.discharge.value_counts()
+    label_dict = {'discharge':0, 'admit':1}; label_dict
+    df['label'] = df.discharge.replace(label_dict)
+    df['text'] = df['CleanSubjectiveNotes'].map(str) + ', ' + df['pmhx'].map(str)
+    df = df[['discharge', 'label', 'text']]
+    display(df.head())
+    
+    return df, label_dict
+
+
+###
+
+def split_data(df, test_size=0.1):
+    X_train, X_val, y_train, y_val = train_test_split(df.index.values, 
+                                                  df.label.values, 
+                                                  test_size=test_size, 
+                                                  random_state=17, 
+                                                  stratify=df.label.values)
+    df['data_type'] = ['not_set']*df.shape[0]
+    df.loc[X_train, 'data_type'] = 'train'
+    df.loc[X_val, 'data_type'] = 'val'
+    display(df.groupby(['discharge', 'label', 'data_type']).count())
+    
+    return X_train, X_val, y_train, y_val
 
 ###
 
